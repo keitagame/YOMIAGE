@@ -1,0 +1,7 @@
+# VOICEVOX Discord Bot — 依存パッケージ
+discord.py[voice]>=2.3.2
+aiohttp>=3.9.0
+python-dotenv>=1.0.0
+
+# FFmpegはシステムにインストールが必要 (下記README参照)
+# PyNaClはvoice用の暗号化ライブラリ (discord.py[voice]に含まれる)
