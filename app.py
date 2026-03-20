@@ -28,6 +28,7 @@ load_dotenv()
 # ───────────────────────── 設定 ─────────────────────────
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "YOUR_TOKEN_HERE")
 VOICEVOX_URL  = os.getenv("VOICEVOX_URL", "http://localhost:50021")
+print("TOKEN:", DISCORD_TOKEN)
 
 # デフォルト話者ID (0=四国めたん, 1=ずんだもん, 2=春日部つむぎ…)
 DEFAULT_SPEAKER = int(os.getenv("DEFAULT_SPEAKER", "1"))
@@ -316,6 +317,42 @@ async def cmd_channel(ctx: commands.Context):
     guild_text_channel[ctx.guild.id] = ctx.channel.id
     await ctx.send(f"✅ 読み上げチャンネルを `{ctx.channel.name}` に変更しました。")
 
+@bot.event
+async def on_voice_state_update(member: discord.Member,
+                                before: discord.VoiceState,
+                                after: discord.VoiceState):
+
+    guild = member.guild
+    vc = guild.voice_client
+
+    # --- 入室読み上げ ---
+    # before.channel: 以前のVC
+    # after.channel:  現在のVC
+    if before.channel is None and after.channel is not None:
+        # Bot自身は無視
+        if member.id != bot.user.id:
+            # 読み上げ対象チャンネルが設定されているか
+            target_ch = guild_text_channel.get(guild.id)
+            if target_ch is not None and vc and vc.is_connected():
+                text = f"{member.display_name} さんが参加しました"
+                speaker = guild_speaker[guild.id]
+                ensure_worker(guild)
+                await guild_queue[guild.id].put((text, speaker))
+    if before.channel is not None and after.channel is None:
+        if member.id != bot.user.id:
+            target_ch = guild_text_channel.get(guild.id)
+            if target_ch is not None and vc and vc.is_connected():
+                text = f"{member.display_name} さんが退出しました"
+                speaker = guild_speaker[guild.id]
+                ensure_worker(guild)
+                await guild_queue[guild.id].put((text, speaker))
+    # --- 既存の「Botだけ残ったら退出」処理 ---
+    if vc is None:
+        return
+    if len(vc.channel.members) == 1 and vc.channel.members[0].id == bot.user.id:
+        await vc.disconnect()
+        guild_text_channel.pop(guild.id, None)
+        print(f"[INFO] 誰もいないので {guild.name} のVCから退出しました")
 
 @bot.command(name="status")
 async def cmd_status(ctx: commands.Context):
@@ -359,4 +396,4 @@ async def cmd_help(ctx: commands.Context):
 
 # ──────────────────────────── 起動 ───────────────────────────
 if __name__ == "__main__":
-    bot.run(DISCORD_TOKEN)
+    bot.run("")
