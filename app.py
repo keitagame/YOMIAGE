@@ -41,12 +41,12 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.voice_states = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="v!", intents=intents)
 
 # ── ギルドごとの状態管理 ──
 # { guild_id: speaker_id }
 guild_speaker: dict[int, int] = defaultdict(lambda: DEFAULT_SPEAKER)
-
+user_speaker: dict[int, int] = {}
 # { guild_id: asyncio.Queue }
 guild_queue: dict[int, asyncio.Queue] = {}
 
@@ -153,6 +153,10 @@ async def on_ready():
     print(f"✅ Logged in as {bot.user} (id={bot.user.id})")
     print(f"   VOICEVOX: {VOICEVOX_URL}")
     print(f"   デフォルト話者: {DEFAULT_SPEAKER}")
+@bot.command(name="usersp")
+async def cmd_user_speaker(ctx: commands.Context, speaker_id: int):
+    user_speaker[ctx.author.id] = speaker_id
+    await ctx.send(f" {ctx.author.display_name} さんの話者を `{speaker_id}` に設定しました。")
 
 
 @bot.event
@@ -184,8 +188,10 @@ async def on_message(message: discord.Message):
     text = preprocess(message.content)
     if not text:
         return
+    
 
-    speaker = guild_speaker[guild.id]
+    speaker = user_speaker.get(message.author.id, guild_speaker[guild.id])
+    #speaker = guild_speaker[guild.id]
     ensure_worker(guild)
     await guild_queue[guild.id].put((text, speaker))
 
@@ -295,15 +301,19 @@ async def cmd_say(ctx: commands.Context, *, text: str):
     """指定テキストを即座に読み上げキューへ追加する"""
     vc = ctx.guild.voice_client
     if vc is None or not vc.is_connected():
-        await ctx.send("❌ 先に `!join` でVCに参加してください。")
+        await ctx.send("❌ 先に `v!join` でVCに参加してください。")
         return
     processed = preprocess(text)
     if not processed:
         await ctx.send("❌ 読み上げるテキストがありません。")
         return
-    speaker = guild_speaker[ctx.guild.id]
+    speaker = user_speaker.get(ctx.author.id, guild_speaker[ctx.guild.id])
     ensure_worker(ctx.guild)
     await guild_queue[ctx.guild.id].put((processed, speaker))
+
+    #speaker = guild_speaker[ctx.guild.id]
+    #ensure_worker(ctx.guild)
+    #await guild_queue[ctx.guild.id].put((processed, speaker))
     await ctx.message.add_reaction("🔊")
 
 
@@ -312,7 +322,7 @@ async def cmd_channel(ctx: commands.Context):
     """読み上げ対象チャンネルをこのチャンネルに変更する"""
     vc = ctx.guild.voice_client
     if vc is None or not vc.is_connected():
-        await ctx.send("❌ 先に `!join` でVCに参加してください。")
+        await ctx.send("❌ 先に `v!join` でVCに参加してください。")
         return
     guild_text_channel[ctx.guild.id] = ctx.channel.id
     await ctx.send(f"✅ 読み上げチャンネルを `{ctx.channel.name}` に変更しました。")
@@ -380,14 +390,14 @@ async def cmd_help(ctx: commands.Context):
     embed = discord.Embed(title="🤖 VOICEVOX Bot コマンド一覧",
                           color=0x57f287)
     cmds = [
-        ("!join / !j",        "VCに参加して読み上げ開始"),
-        ("!leave / !l / !bye","VCから退出"),
-        ("!skip / !s",        "再生中の音声をスキップ"),
-        ("!speaker / !sp [ID]","話者変更 (IDなしで一覧)"),
-        ("!say <テキスト>",   "テキストを直接読み上げ"),
-        ("!channel / !ch",    "読み上げチャンネルを変更"),
-        ("!status",           "現在の状態を表示"),
-        ("!help_vv / !h",     "このヘルプを表示"),
+        ("v!join / v!j",        "VCに参加して読み上げ開始"),
+        ("v!leave / v!l / v!bye","VCから退出"),
+        ("v!skip / v!s",        "再生中の音声をスキップ"),
+        ("v!speaker / v!sp [ID]","話者変更 (IDなしで一覧)"),
+        ("v!say <テキスト>",   "テキストを直接読み上げ"),
+        ("v!channel / v!ch",    "読み上げチャンネルを変更"),
+        ("v!status",           "現在の状態を表示"),
+        ("v!help_vv / v!h",     "このヘルプを表示"),
     ]
     for name, desc in cmds:
         embed.add_field(name=f"`{name}`", value=desc, inline=False)
