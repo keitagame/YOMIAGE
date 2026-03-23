@@ -9,7 +9,6 @@ VOICEVOX Discord 読み上げBot
   - URL・メンション・絵文字の自動省略
   - キューイング(複数メッセージの順次再生)
 """
-
 import asyncio
 import io
 import os
