@@ -9,6 +9,7 @@ VOICEVOX Discord 読み上げBot
   - URL・メンション・絵文字の自動省略
   - キューイング(複数メッセージの順次再生)
 """
+
 import asyncio
 import io
 import os
@@ -21,6 +22,8 @@ import aiohttp
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+# { "単語": "読み方" }
+reading_dict: dict[str, str] = {}
 
 load_dotenv()
 
@@ -54,6 +57,10 @@ guild_text_channel: dict[int, int] = {}
 
 # { guild_id: asyncio.Task }
 guild_task: dict[int, asyncio.Task] = {}
+def apply_reading_dict(text: str) -> str:
+    for word, reading in reading_dict.items():
+        text = text.replace(word, reading)
+    return text
 
 
 # ─────────────────────── VOICEVOX ヘルパー ─────────────────
@@ -157,6 +164,26 @@ async def cmd_user_speaker(ctx: commands.Context, speaker_id: int):
     user_speaker[ctx.author.id] = speaker_id
     await ctx.send(f" {ctx.author.display_name} さんの話者を `{speaker_id}` に設定しました。")
 
+@bot.command(name="dict_add")
+async def cmd_dict_add(ctx, word: str, reading: str):
+    reading_dict[word] = reading
+    await ctx.send(f"`{word}` の読み方を `{reading}` に登録しました。")
+@bot.command(name="dict_del")
+async def cmd_dict_del(ctx, word: str):
+    if word in reading_dict:
+        del reading_dict[word]
+        await ctx.send(f"`{word}` を辞書から削除しました。")
+    else:
+        await ctx.send(f"`{word}` は登録されていません。")
+@bot.command(name="dict_list")
+async def cmd_dict_list(ctx):
+    if not reading_dict:
+        await ctx.send("辞書は空です。")
+        return
+
+    lines = [f"`{w}` → `{r}`" for w, r in reading_dict.items()]
+    msg = "\n".join(lines)
+    await ctx.send(f"**読み替え辞書一覧**\n{msg}")
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -185,6 +212,7 @@ async def on_message(message: discord.Message):
         return
 
     text = preprocess(message.content)
+    text = apply_reading_dict(text)
     if not text:
         return
     
