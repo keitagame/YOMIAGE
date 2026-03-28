@@ -10,6 +10,7 @@ VOICEVOX Discord 読み上げBot
   - キューイング(複数メッセージの順次再生)
 """
 
+
 import asyncio
 import io
 import os
